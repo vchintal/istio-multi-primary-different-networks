@@ -6,8 +6,8 @@
 Before you could deploy the Terraform, run the following command to generate 
 certs for `cluster1` and `cluster2`:
 
-```
-sh sh generate_certs.sh
+```sh
+sh generate_certs.sh
 ```
 
 ### Terraform
