@@ -13,6 +13,7 @@ sh generate_certs.sh
 ### Terraform
 To deploy the terraform repo, run the commands shown below:
 ```sh 
+terraform init
 terraform apply --auto-approve \
     -target=module.vpc_1 \
     -target=module.vpc_2 \
