@@ -1,6 +1,16 @@
-# Istio multi-primary on different networks
+# Istio multi-primary on different networks on EKS
 
 ## Deploy 
+
+### Generate Certs
+Before you could deploy the Terraform, run the following command to generate 
+certs for `cluster1` and `cluster2`:
+
+```
+sh sh generate_certs.sh
+```
+
+### Terraform
 To deploy the terraform repo, run the commands shown below:
 ```sh 
 terraform apply --auto-approve \
@@ -51,8 +61,8 @@ terraform apply --auto-approve
 
 ### Readiness of the Istio Gateway loadbalancers
 
-Before you could do any testing, you need to ensure that
-* The loadbalancers for `eastwest` gateway are ready for the traffic 
+Before you could do any testing, you need to ensure that:
+* The loadbalancer for `istio-eastwestgateway` service is ready for the traffic 
 * The loadblanncer target groups have their targets ready. 
 
 Use the following scripts to test the readiness of the LBs.
@@ -150,7 +160,8 @@ Hello version: v2, instance: helloworld-v2-7f46498c69-5g9rk
 
 ## Destroy 
 ```sh 
-# Remove all helm repositories first 
+# Remove all helm repositories first. This ensures that all the loadbalancer are
+# terminated first  
 TARGETS=""
 terraform state list | egrep '^helm*' | while read HELM_INSTALL
 do
