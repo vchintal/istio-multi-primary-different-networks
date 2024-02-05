@@ -1,0 +1,11 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: cluster
+spec:
+  values:
+    global:
+      meshID: {{ .Values.meshID }}
+      multiCluster:
+        clusterName: {{ .Values.clusterName }}
+      network: {{ .Values.networkName }}
