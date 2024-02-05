@@ -1,5 +1,14 @@
 # Istio multi-primary on different networks on EKS
 
+## Prerequisites
+
+Ensure that you have installed the following tools locally:
+
+1. [awscli](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+2. [kubectl](https://kubernetes.io/docs/tasks/tools/)
+3. [terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+4. [istioctl](https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/)
+
 ## Deploy 
 
 ### Generate Certs
@@ -14,6 +23,7 @@ sh generate_certs.sh
 To deploy the terraform repo, run the commands shown below:
 ```sh 
 terraform init
+
 terraform apply --auto-approve \
     -target=module.vpc_1 \
     -target=module.vpc_2 \
