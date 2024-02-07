@@ -18,8 +18,8 @@ locals {
   clusterName1 = "cluster1"
   clusterName2 = "cluster2"
 
-  # istio_chart_url     = "https://istio-release.storage.googleapis.com/charts"
-  # istio_chart_version = "1.20"
+  istio_chart_url     = "https://istio-release.storage.googleapis.com/charts"
+  istio_chart_version = "1.20"
 
   tags = {
     GithubRepo = "github.com/aws_ia/terraform-aws-eks-blueprints"

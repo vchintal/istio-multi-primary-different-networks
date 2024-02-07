@@ -108,7 +108,7 @@ module "eks_2" {
       type                          = "ingress"
       source_cluster_security_group = true
     }
-  }
+  }  
 
   tags = local.tags
 }
@@ -119,6 +119,13 @@ resource "kubernetes_namespace_v1" "istio_system_2" {
     labels = {
       "topology.istio.io/network" = local.networkName2
     }
+  }
+  provider = kubernetes.kubernetes_2
+}
+
+resource "kubernetes_namespace_v1" "istio_ingress_2" {
+  metadata {
+    name = "istio-ingress"
   }
   provider = kubernetes.kubernetes_2
 }
@@ -152,18 +159,133 @@ module "eks_2_addons" {
   enable_aws_load_balancer_controller = true
 
   helm_releases = {
-    istio-operator = {
-      chart            = "istio-operator"
-      chart_version    = "2.13.2"
-      repository       = "https://stevehipwell.github.io/helm-charts/"
-      name             = "istio-operator"
-      namespace        = "istio-operator"
-      create_namespace = true
+    istio-base = {
+      chart         = "base"
+      chart_version = local.istio_chart_version
+      repository    = local.istio_chart_url
+      name          = "istio-base"
+      namespace     = kubernetes_namespace_v1.istio_system_2.metadata[0].name
+    }
 
-      set = [{
-        name  = "watchedNamespaces"
-        value = "${kubernetes_namespace_v1.istio_system_2.metadata[0].name}"
-      }]
+    istiod = {
+      chart         = "istiod"
+      chart_version = local.istio_chart_version
+      repository    = local.istio_chart_url
+      name          = "istiod"
+      namespace     = kubernetes_namespace_v1.istio_system_2.metadata[0].name
+
+      set = [
+        {
+          name  = "meshConfig.accessLogFile"
+          value = "/dev/stdout"
+        },
+        {
+          name  = "global.meshID"
+          value = local.meshID
+        },
+        {
+          name  = "global.multiCluster.clusterName"
+          value = local.clusterName2
+        },
+        {
+          name  = "global.network"
+          value = local.networkName2
+        },
+        {
+          name = "gateways.istio-ingressgateway.injectionTemplate"
+          value = "gateway"
+        }
+      ]
+    }
+
+    istio-ingress = {
+      chart            = "gateway"
+      chart_version    = local.istio_chart_version
+      repository       = local.istio_chart_url
+      name             = "istio-ingressgateway"
+      namespace        = kubernetes_namespace_v1.istio_ingress_2.metadata[0].name # per https://github.com/istio/istio/blob/master/manifests/charts/gateways/istio-ingress/values.yaml#L2      
+      values = [
+        yamlencode(
+          {
+            labels = {
+              istio = "ingressgateway"
+            }
+            service = {
+              annotations = {
+                "service.beta.kubernetes.io/aws-load-balancer-type"            = "external"
+                "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type" = "ip"
+                "service.beta.kubernetes.io/aws-load-balancer-scheme"          = "internet-facing"
+                "service.beta.kubernetes.io/aws-load-balancer-attributes"      = "load_balancing.cross_zone.enabled=true"
+              }
+              ports = [
+                {
+                  name       = "tls-istiod"
+                  port       = 15012
+                  targetPort = 15012
+                },
+                {
+                  name       = "tls-webhook"
+                  port       = 15017
+                  targetPort = 15017
+                }
+              ]
+            }
+          }
+        )
+      ]
+    }
+
+    istio-eastwestgateway = {
+      chart         = "gateway"
+      chart_version = local.istio_chart_version
+      repository    = local.istio_chart_url
+      name          = "istio-eastwestgateway"
+      namespace     = kubernetes_namespace_v1.istio_ingress_2.metadata[0].name
+
+      values = [
+        yamlencode(
+          {
+            labels = {
+              istio                       = "eastwestgateway"
+              app                         = "istio-eastwestgateway"
+              "topology.istio.io/network" = local.networkName2
+            }
+            env = { 
+              "ISTIO_META_REQUESTED_NETWORK_VIEW" = local.networkName2
+            }
+            service = {
+              annotations = {
+                "service.beta.kubernetes.io/aws-load-balancer-type"            = "external"
+                "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type" = "ip"
+                "service.beta.kubernetes.io/aws-load-balancer-scheme"          = "internet-facing"
+                "service.beta.kubernetes.io/aws-load-balancer-attributes"      = "load_balancing.cross_zone.enabled=true"
+              }
+              ports = [
+                {
+                  name       = "status-port"
+                  port       = 15021
+                  targetPort = 15021
+                },
+                {
+                  name       = "tls"
+                  port       = 15443
+                  targetPort = 15443
+                },
+                {
+                  name       = "tls-istiod"
+                  port       = 15012
+                  targetPort = 15012
+                },
+                {
+                  name       = "tls-webhook"
+                  port       = 15017
+                  targetPort = 15017
+                }
+              ]
+            }
+          }
+        )
+      ]
     }
   }
 
@@ -175,56 +297,13 @@ module "eks_2_addons" {
   }
 }
 
-resource "helm_release" "istio_cluster_2" {
-  name       = "istio-cluster"
-  repository = "./"
-  namespace  = kubernetes_namespace_v1.istio_system_2.metadata[0].name
-  chart      = "istio-cluster"
-
-  set {
-    name  = "clusterName"
-    value = local.clusterName2
-  }
-
-  set {
-    name  = "networkName"
-    value = local.networkName2
-  }
-
-  set {
-    name  = "meshID"
-    value = "mesh1"
-  }  
-
-  provider = helm.helm_2
-}
-
-resource "helm_release" "istio_eastwest_2" {
-  name       = "istio-eastwest"
-  repository = "./"
-  namespace  = kubernetes_namespace_v1.istio_system_2.metadata[0].name
-  chart      = "istio-eastwest"
-
-  set {
-    name  = "clusterName"
-    value = local.clusterName2
-  }
-
-  set {
-    name  = "networkName"
-    value = local.networkName2
-  }
-
-  provider = helm.helm_2
-}
-
 resource "kubernetes_secret" "istio_reader_token_2" {
   metadata {
     annotations = {
       "kubernetes.io/service-account.name" = "istio-reader-service-account"
     }
     name      = "istio-reader-service-account-istio-remote-secret-token"
-    namespace = kubernetes_namespace_v1.istio_system_2.metadata[0].name
+    namespace = module.eks_2_addons.helm_releases.istiod.namespace
   }
   type = "kubernetes.io/service-account-token"
 
@@ -234,7 +313,7 @@ resource "kubernetes_secret" "istio_reader_token_2" {
 data "kubernetes_secret" "istio_reader_token_2" {
   metadata {
     name      = kubernetes_secret.istio_reader_token_2.metadata[0].name
-    namespace = kubernetes_namespace_v1.istio_system_2.metadata[0].name
+    namespace = module.eks_2_addons.helm_releases.istiod.namespace
   }
   provider = kubernetes.kubernetes_2
 }
@@ -249,11 +328,11 @@ resource "kubernetes_namespace_v1" "sample_namespace_2" {
   provider = kubernetes.kubernetes_2
 }
 
-resource "helm_release" "multicluster_verification_2" {
-  name       = "multicluster-verification"
+resource "helm_release" "multicluster_miscellaneous_2" {
+  name       = "multicluster-miscellaneous"
   repository = "./"
   namespace  = kubernetes_namespace_v1.sample_namespace_2.metadata[0].name
-  chart      = "multicluster-verification"
+  chart      = "multicluster-miscellaneous"
 
   set {
     name  = "version"

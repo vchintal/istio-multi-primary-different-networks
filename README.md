@@ -29,14 +29,14 @@ terraform apply --auto-approve \
     -target=module.vpc_2 \
     -target=module.eks_1 \
     -target=module.eks_2 \
-    -target=module.eks_1_addons \
-    -target=module.eks_2_addons \
     -target=kubernetes_secret.cacerts_cluster1 \
-    -target=kubernetes_secret.cacerts_cluster2
+    -target=kubernetes_secret.cacerts_cluster2 
 
 terraform apply --auto-approve \
-    -target=helm_release.istio_cluster_1 \
-    -target=helm_release.istio_cluster_2
+    -target="module.eks_1_addons.helm_release.this[\"istiod\"]" \
+    -target="module.eks_2_addons.helm_release.this[\"istiod\"]"
+
+terraform apply --auto-approve 
 ```
 
 After running the command successfully, set the kubeconfig for both EKS clusters:
@@ -45,27 +45,6 @@ aws eks update-kubeconfig --region us-west-2 --name eks-1
 aws eks update-kubeconfig --region us-west-2 --name eks-2
 CTX_CLUSTER1=`aws eks describe-cluster --name eks-1 | jq -r '.cluster.arn'`
 CTX_CLUSTER2=`aws eks describe-cluster --name eks-2 | jq -r '.cluster.arn'`
-```
-
-Check on either clusters if the deployed `IstioOperator`s are healthy:
-
-```sh
-k get istiooperator.install.istio.io  -n istio-system --context $CTX_CLUSTER1
-k get istiooperator.install.istio.io  -n istio-system --context $CTX_CLUSTER2
-```
-
-The output should be similar to: 
-
-```
-NAME       REVISION   STATUS    AGE
-cluster               HEALTHY   24s
-```
-
-After ensuring that the `IstioOperator`s are healthy, deploy rest of the 
-terraform repo:
-
-```sh 
-terraform apply --auto-approve
 ```
 
 ## Testing
@@ -79,7 +58,7 @@ Before you could do any testing, you need to ensure that:
 Use the following scripts to test the readiness of the LBs.
 > Note: Change the k8s context to run it against the other cluster
 ```sh 
-EW_LB_NAME=$(k get svc istio-eastwestgateway -n istio-system --context $CTX_CLUSTER1 -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+EW_LB_NAME=$(k get svc istio-eastwestgateway -n istio-ingress --context $CTX_CLUSTER1 -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
 EW_LB_ARN=$(aws elbv2 describe-load-balancers | \
 jq -r --arg EW_LB_NAME "$EW_LB_NAME" \
@@ -171,14 +150,11 @@ Hello version: v2, instance: helloworld-v2-7f46498c69-5g9rk
 
 ## Destroy 
 ```sh 
-# Remove all helm repositories first. This ensures that all the loadbalancer are
-# terminated first  
-TARGETS=""
-terraform state list | egrep '^helm*' | while read HELM_INSTALL
-do
-    TARGETS+="--target=$HELM_INSTALL "
-done
-sh -c "terraform destroy --auto-approve $TARGETS"
+terraform destroy --auto-approve \
+    -target=module.eks_1_addons.helm_release.this \
+    -target=module.eks_2_addons.helm_release.this \
+    -target=helm_release.multicluster_miscellaneous_1 \
+    -target=helm_release.multicluster_miscellaneous_2
 
 # Remove all the rest 
 terraform destroy --auto-approve
@@ -193,17 +169,18 @@ as this, Istio multi-primary on different networks.
 
 The ordering is important when deploying the resources with Terraform and here 
 it is:
-1. Deploy VPCs, EKS clusters and EKS AddOns (this deploys the IstioOperator 
-Controller)
-2. Create the `istio-system` namespace 
-3. Deploy the `cacerts` secret in the `istio-system` namespace
-4. Deploy the `IstioOperator` that creates the Istio service mesh in `istio-system`
-   * This step after step #3 would cause the `cacerts` to picked up and processed 
-   by Istio control plane
-5. Deploy the `IstioOperator` that creates the `eastwest` Ingress Gateway 
-deployment and service. With this step, you can also bundle the Istio `Gateway`
-definition.
-6. Lastly, deploy the cross-cluster secrets for `istiod` to other
+1. Deploy the VPCs and EKS clusters 
+2. Deploy the `cacerts` secret in the `istio-system` namespace in both clusters
+4. Deploy the control plane `istiod` in both clusters
+5. Deploy the rest of the resources, including Helm Chart `multicluster-miscelleneous`
+in both clusters. 
+
+The `multicluster-miscelleneous` Helm chart includes the following key resources:
+1. `Deployment`, `Service Account` and `Service` definitions for `sleep` app
+2. `Deployment` and `Service` definitions for `helloworld` app
+3. Static `Gateway` definition of `cross-network-gateway` in `istio-ingress` namespace 
+4. Templated `Secret` definition of `istio-remote-secret-*`
+
 
 
 ## Documentation Links 

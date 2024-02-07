@@ -2,6 +2,7 @@ apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   name: cross-network-gateway
+  namespace: istio-ingress
 spec:
   selector:
     istio: eastwestgateway
@@ -14,3 +15,4 @@ spec:
         mode: AUTO_PASSTHROUGH
       hosts:
         - "*.local"
+
