@@ -108,7 +108,7 @@ module "eks_2" {
       type                          = "ingress"
       source_cluster_security_group = true
     }
-  }  
+  }
 
   tags = local.tags
 }
@@ -192,18 +192,18 @@ module "eks_2_addons" {
           value = local.networkName2
         },
         {
-          name = "gateways.istio-ingressgateway.injectionTemplate"
+          name  = "gateways.istio-ingressgateway.injectionTemplate"
           value = "gateway"
         }
       ]
     }
 
     istio-ingress = {
-      chart            = "gateway"
-      chart_version    = local.istio_chart_version
-      repository       = local.istio_chart_url
-      name             = "istio-ingressgateway"
-      namespace        = kubernetes_namespace_v1.istio_ingress_2.metadata[0].name # per https://github.com/istio/istio/blob/master/manifests/charts/gateways/istio-ingress/values.yaml#L2      
+      chart         = "gateway"
+      chart_version = local.istio_chart_version
+      repository    = local.istio_chart_url
+      name          = "istio-ingressgateway"
+      namespace     = kubernetes_namespace_v1.istio_ingress_2.metadata[0].name # per https://github.com/istio/istio/blob/master/manifests/charts/gateways/istio-ingress/values.yaml#L2      
       values = [
         yamlencode(
           {
@@ -250,7 +250,7 @@ module "eks_2_addons" {
               app                         = "istio-eastwestgateway"
               "topology.istio.io/network" = local.networkName2
             }
-            env = { 
+            env = {
               "ISTIO_META_REQUESTED_NETWORK_VIEW" = local.networkName2
             }
             service = {

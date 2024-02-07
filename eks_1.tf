@@ -88,7 +88,7 @@ module "eks_1" {
       desired_size = 2
     }
   }
-  
+
   #  EKS K8s API cluster needs to be able to talk with the EKS worker nodes with port 15017/TCP and 15012/TCP which is used by Istio
   #  Istio in order to create sidecar needs to be able to communicate with webhook and for that network passage to EKS is needed.
   node_security_group_additional_rules = {
@@ -108,7 +108,7 @@ module "eks_1" {
       type                          = "ingress"
       source_cluster_security_group = true
     }
-  }  
+  }
 
   tags = local.tags
 }
@@ -192,18 +192,18 @@ module "eks_1_addons" {
           value = local.networkName1
         },
         {
-          name = "gateways.istio-ingressgateway.injectionTemplate"
+          name  = "gateways.istio-ingressgateway.injectionTemplate"
           value = "gateway"
         }
       ]
     }
 
     istio-ingress = {
-      chart            = "gateway"
-      chart_version    = local.istio_chart_version
-      repository       = local.istio_chart_url
-      name             = "istio-ingressgateway"
-      namespace        = kubernetes_namespace_v1.istio_ingress_1.metadata[0].name # per https://github.com/istio/istio/blob/master/manifests/charts/gateways/istio-ingress/values.yaml#L2
+      chart         = "gateway"
+      chart_version = local.istio_chart_version
+      repository    = local.istio_chart_url
+      name          = "istio-ingressgateway"
+      namespace     = kubernetes_namespace_v1.istio_ingress_1.metadata[0].name # per https://github.com/istio/istio/blob/master/manifests/charts/gateways/istio-ingress/values.yaml#L2
       values = [
         yamlencode(
           {
@@ -250,7 +250,7 @@ module "eks_1_addons" {
               app                         = "istio-eastwestgateway"
               "topology.istio.io/network" = local.networkName1
             }
-            env = { 
+            env = {
               "ISTIO_META_REQUESTED_NETWORK_VIEW" = local.networkName1
             }
             service = {
