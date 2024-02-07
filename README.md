@@ -34,7 +34,9 @@ terraform apply --auto-approve \
 
 terraform apply --auto-approve \
     -target="module.eks_1_addons.helm_release.this[\"istiod\"]" \
-    -target="module.eks_2_addons.helm_release.this[\"istiod\"]"
+    -target="module.eks_2_addons.helm_release.this[\"istiod\"]" \
+    -target=module.eks_1_addons.module.aws_load_balancer_controller \
+    -target=module.eks_2_addons.module.aws_load_balancer_controller 
 
 terraform apply --auto-approve 
 ```
@@ -150,6 +152,8 @@ Hello version: v2, instance: helloworld-v2-7f46498c69-5g9rk
 
 ## Destroy 
 ```sh 
+# Remove all the Helm installs first, this ensures that all the Load Balancers
+# are cleanly destroyed before removing other infrastructure
 terraform destroy --auto-approve \
     -target=module.eks_1_addons.helm_release.this \
     -target=module.eks_2_addons.helm_release.this \
