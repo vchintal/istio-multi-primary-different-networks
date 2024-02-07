@@ -113,6 +113,41 @@ module "eks_2" {
   tags = local.tags
 }
 
+# Generate private key for Intermediate CA in Cluster 2
+resource "tls_private_key" "intermediate_ca_key_eks2" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+
+# Generate CSR for Intermediate CA in Cluster 2
+resource "tls_cert_request" "intermediate_ca_csr_eks2" {
+  private_key_pem = tls_private_key.intermediate_ca_key_eks2.private_key_pem
+
+  subject {
+    common_name  = "intermediate.eks2.multicluster.com"
+  }
+}
+
+# Sign the Intermediate CA certificate with the Root CA for Cluster 2
+resource "tls_locally_signed_cert" "intermediate_ca_cert_eks2" {
+  cert_request_pem = tls_cert_request.intermediate_ca_csr_eks2.cert_request_pem
+  ca_key_algorithm = tls_private_key.root_ca_key.algorithm
+  ca_private_key_pem = tls_private_key.root_ca_key.private_key_pem
+  ca_cert_pem = tls_self_signed_cert.root_ca_cert.cert_pem
+
+  validity_period_hours = 87600
+  is_ca_certificate     = true
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+    "client_auth",
+    "cert_signing",
+  ]
+}
+
 resource "kubernetes_namespace_v1" "istio_system_2" {
   metadata {
     name = "istio-system"
@@ -129,21 +164,26 @@ resource "kubernetes_namespace_v1" "istio_ingress_2" {
   }
   provider = kubernetes.kubernetes_2
 }
+variable "root_ca_private_key_pem" {
+  type      = string
+  description = "Private key for the root CA"
+  sensitive = true
+}
 
-# Create secret for custom certificates in Cluster 1
-resource "kubernetes_secret" "cacerts_cluster2" {
+
+# Create secret for custom certificates in Cluster 2
+resource "kubernetes_secret" "cacerts_eks_2" {
+  provider = "kubernetes.eks_2" # Make sure this provider is defined for cluster 2
   metadata {
     name      = "cacerts"
     namespace = kubernetes_namespace_v1.istio_system_2.metadata[0].name
   }
 
   data = {
-    "ca-cert.pem"    = file("certs/cluster2/ca-cert.pem")
-    "ca-key.pem"     = file("certs/cluster2/ca-key.pem")
-    "root-cert.pem"  = file("certs/cluster2/root-cert.pem")
-    "cert-chain.pem" = file("certs/cluster2/cert-chain.pem")
+    "ca-cert.pem"    = tls_self_signed_cert.root_ca_cert.cert_pem
+    "ca-key.pem"     = tls_private_key.root_ca_key.private_key_pem
+    "cert-chain.pem" = tls_locally_signed_cert.intermediate_ca_cert_eks2.cert_pem
   }
-  provider = kubernetes.kubernetes_2
 }
 
 module "eks_2_addons" {

@@ -81,11 +81,11 @@ module "eks_1" {
 
   eks_managed_node_groups = {
     initial = {
-      instance_types = ["t3.medium"]
+      instance_types = ["t3.xlarge"]
 
       min_size     = 1
       max_size     = 5
-      desired_size = 2
+      desired_size = 3
     }
   }
 
@@ -113,6 +113,67 @@ module "eks_1" {
   tags = local.tags
 }
 
+# Generate a private key for Root CA
+resource "tls_private_key" "root_ca_key" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+# Generate a self-signed Root CA certificate
+resource "tls_self_signed_cert" "root_ca_cert" {
+  private_key_pem = tls_private_key.root_ca_key.private_key_pem
+  is_ca_certificate = true
+  set_subject_key_id = true
+  set_authority_key_id = true
+  validity_period_hours = 87600
+
+  subject {
+    common_name  = "root.multicluster.com"
+  }
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+    "client_auth",
+    "cert_signing",
+  ]
+}
+
+# Generate private keys for Intermediate CAs in both clusters
+resource "tls_private_key" "intermediate_ca_key_eks1" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+# Generate CSR for Intermediate CAs in both clusters
+resource "tls_cert_request" "intermediate_ca_csr_eks1" {
+  private_key_pem = tls_private_key.intermediate_ca_key_eks1.private_key_pem
+
+  subject {
+    common_name  = "intermediate.eks1.multicluster.com"
+  }
+}
+
+# Sign the Intermediate CA certificates with the Root CA
+resource "tls_locally_signed_cert" "intermediate_ca_cert_eks1" {
+  cert_request_pem = tls_cert_request.intermediate_ca_csr_eks1.cert_request_pem
+  ca_key_algorithm = tls_private_key.root_ca_key.algorithm
+  ca_private_key_pem = tls_private_key.root_ca_key.private_key_pem
+  ca_cert_pem = tls_self_signed_cert.root_ca_cert.cert_pem
+
+  validity_period_hours = 87600
+  is_ca_certificate     = true
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+    "client_auth",
+    "cert_signing",
+  ]
+}
+
 resource "kubernetes_namespace_v1" "istio_system_1" {
   metadata {
     name = "istio-system"
@@ -131,19 +192,18 @@ resource "kubernetes_namespace_v1" "istio_ingress_1" {
 }
 
 # Create secret for custom certificates in Cluster 1
-resource "kubernetes_secret" "cacerts_cluster1" {
+resource "kubernetes_secret" "cacerts_eks_1" {
+  provider = kubernetes.kubernetes_1
   metadata {
     name      = "cacerts"
     namespace = kubernetes_namespace_v1.istio_system_1.metadata[0].name
   }
 
   data = {
-    "ca-cert.pem"    = file("certs/cluster1/ca-cert.pem")
-    "ca-key.pem"     = file("certs/cluster1/ca-key.pem")
-    "root-cert.pem"  = file("certs/cluster1/root-cert.pem")
-    "cert-chain.pem" = file("certs/cluster1/cert-chain.pem")
+    "ca-cert.pem"    = tls_self_signed_cert.root_ca_cert.cert_pem
+    "ca-key.pem"     = tls_private_key.root_ca_key.private_key_pem
+    "cert-chain.pem" = tls_locally_signed_cert.intermediate_ca_cert_eks1.cert_pem
   }
-  provider = kubernetes.kubernetes_1
 }
 
 module "eks_1_addons" {
@@ -361,3 +421,11 @@ resource "helm_release" "multicluster_miscellaneous_1" {
 
   provider = helm.helm_1
 }
+
+output "root_ca_certificate_pem" {
+  value = tls_self_signed_cert.root_ca_cert.cert_pem
+  description = "The PEM-encoded public certificate for the root CA."
+  sensitive = true
+}
+
+
