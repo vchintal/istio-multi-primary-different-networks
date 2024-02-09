@@ -11,15 +11,6 @@ Ensure that you have installed the following tools locally:
 
 ## Deploy 
 
-### Generate Certs
-Before you could deploy the Terraform, run the following command to generate 
-certs for `cluster1` and `cluster2`:
-
-```sh
-sh generate_certs.sh
-```
-
-### Terraform
 To deploy the terraform repo, run the commands shown below:
 ```sh 
 terraform init

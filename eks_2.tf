@@ -138,12 +138,43 @@ resource "kubernetes_secret" "cacerts_cluster2" {
   }
 
   data = {
-    "ca-cert.pem"    = file("certs/cluster2/ca-cert.pem")
-    "ca-key.pem"     = file("certs/cluster2/ca-key.pem")
-    "root-cert.pem"  = file("certs/cluster2/root-cert.pem")
-    "cert-chain.pem" = file("certs/cluster2/cert-chain.pem")
+    "ca-cert.pem"    = tls_locally_signed_cert.intermediate_ca_cert_2.cert_pem
+    "ca-key.pem"     = tls_private_key.intermediate_ca_key_2.private_key_pem
+    "root-cert.pem"  = tls_self_signed_cert.root_ca.cert_pem
+    "cert-chain.pem" = format("%s\n%s",tls_locally_signed_cert.intermediate_ca_cert_2.cert_pem, tls_self_signed_cert.root_ca.cert_pem)
   }
+
   provider = kubernetes.kubernetes_2
+}
+
+resource "tls_private_key" "intermediate_ca_key_2" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_cert_request" "intermediate_ca_csr_2" {
+  private_key_pem = tls_private_key.intermediate_ca_key_2.private_key_pem
+
+  subject {
+    common_name  = "intermediate.multicluster.istio.io"
+  }
+}
+
+resource "tls_locally_signed_cert" "intermediate_ca_cert_2" {
+  cert_request_pem = tls_cert_request.intermediate_ca_csr_2.cert_request_pem
+  ca_private_key_pem = tls_private_key.root_ca_key.private_key_pem
+  ca_cert_pem = tls_self_signed_cert.root_ca.cert_pem
+
+  validity_period_hours = 87600
+  is_ca_certificate     = true
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+    "client_auth",
+    "cert_signing",
+  ]
 }
 
 module "eks_2_addons" {
