@@ -1,5 +1,5 @@
 locals {
-  region = "us-west-2"
+  region = "us-east-2"
   azs    = slice(data.aws_availability_zones.available.names, 0, 3)
 
   # VPC specific settings
@@ -7,8 +7,8 @@ locals {
   vpc_2_cidr = "10.2.0.0/16"
 
   # EKS specific settings
-  eks_1_name          = "eks-1"
-  eks_2_name          = "eks-2"
+  eks_1_name          = "eks1a"
+  eks_2_name          = "eks2a"
   eks_cluster_version = "1.28"
 
   # Istio specific settings

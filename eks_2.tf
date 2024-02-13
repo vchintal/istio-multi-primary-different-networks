@@ -359,11 +359,11 @@ resource "kubernetes_namespace_v1" "sample_namespace_2" {
   provider = kubernetes.kubernetes_2
 }
 
-resource "helm_release" "multicluster_miscellaneous_2" {
-  name       = "multicluster-miscellaneous"
+resource "helm_release" "multicluster_deploy_2" {
+  name       = "multicluster-deploy"
   repository = "./"
   namespace  = kubernetes_namespace_v1.sample_namespace_2.metadata[0].name
-  chart      = "multicluster-miscellaneous"
+  chart      = "multicluster-deploy"
 
   set {
     name  = "version"

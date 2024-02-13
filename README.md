@@ -148,8 +148,8 @@ Hello version: v2, instance: helloworld-v2-7f46498c69-5g9rk
 terraform destroy --auto-approve \
     -target=module.eks_1_addons.helm_release.this \
     -target=module.eks_2_addons.helm_release.this \
-    -target=helm_release.multicluster_miscellaneous_1 \
-    -target=helm_release.multicluster_miscellaneous_2
+    -target=helm_release.multicluster_deploy_1 \
+    -target=helm_release.multicluster_deploy_2
 
 # Remove all the rest 
 terraform destroy --auto-approve
@@ -167,10 +167,10 @@ it is:
 1. Deploy the VPCs and EKS clusters 
 2. Deploy the `cacerts` secret in the `istio-system` namespace in both clusters
 4. Deploy the control plane `istiod` in both clusters
-5. Deploy the rest of the resources, including Helm Chart `multicluster-miscelleneous`
+5. Deploy the rest of the resources, including Helm Chart `multicluster-deploy`
 in both clusters. 
 
-The `multicluster-miscelleneous` Helm chart includes the following key resources:
+The `multicluster-deploy` Helm chart includes the following key resources:
 1. `Deployment`, `Service Account` and `Service` definitions for `sleep` app
 2. `Deployment` and `Service` definitions for `helloworld` app
 3. Static `Gateway` definition of `cross-network-gateway` in `istio-ingress` namespace 
